@@ -1,11 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-from echolib_wrapper import EcholibWrapper
-from keras.layers import Conv2D, MaxPooling2D, Dropout, Input, UpSampling2D, concatenate
-from keras.models import Model
-from keras import backend as K
-from keras.optimizers import Adam
 import tensorflow as tf
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, Input, UpSampling2D, concatenate
+from tensorflow.keras.models import Model
 
 import numpy as np
 import cv2
@@ -17,27 +14,19 @@ cv2.ocl.setUseOpenCL(False)
 
 class PModel:
 
-    def __init__(self, blockNumber = 4, dirName = "/opt", sizeRange = None):
+    def __init__(self, modelFile, blockNumber = 4, sizeRange = None):
 
-        self.config = tf.ConfigProto()
+        self.config = tf.compat.v1.ConfigProto()
 
         self.config.gpu_options.per_process_gpu_memory_fraction = 0.5
         self.config.gpu_options.allow_growth                    = True
 
         self.blockNumber = blockNumber
         self.sizeRange   = sizeRange
-        self.dirName     = dirName
+        self.modelFile    = modelFile
 
 
-        #self.session     = tf.Session(config = self.config)
-        #_, _, self.model = self.__unetModelBlocks(blockNumber = blockNumber)
-
-        #print(self.model)
-
-        #self.model.load_weights(dirName + "/poco_model.hdf5")
-        #self.graph       = tf.get_default_graph()
-
-    def __unetModelBlocks(self, inputs = None, blockNumber = 4, filterNumber = 16):
+    def __unetModelBlocks(self, blockNumber = 4, filterNumber = 16):
 
         inputs        = Input((None, None, 3))
         blockFeatures = []
@@ -77,10 +66,10 @@ class PModel:
 
     def __splitAndPredict(self,p_x,p_y,image):
 
-        with tf.Session(config = self.config):
+        with tf.compat.v1.Session(config = self.config):
 
             _, _, self.model = self.__unetModelBlocks(blockNumber = self.blockNumber)
-            self.model.load_weights(self.dirName + "/poco_model.hdf5")
+            self.model.load_weights(self.modelFile)
 
             partsX = p_x*2 - 1
             partsY = p_y*2 - 1
@@ -247,13 +236,80 @@ class PModel:
                 w = b[2]
                 h = b[3]
 
-                cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),2)
+                cv2.rectangle(image,(x-w//2,y-h//2),(x+w//2,y+h//2),(0,255,0),2)
 
         return image
 
+import glob, os
+
+class FolderProcessing:
+    def __init__(self, detection_method, folder, img_ext, out_folder=None):
+        self.detection_method = detection_method
+        self.img_list = glob.iglob(os.path.join(folder,'*.' + img_ext))
+        self.img_list = sorted(self.img_list)
+
+        self.out_folder = out_folder
+
+    def run(self):
+        for img_filename in self.img_list:
+
+            frame = cv2.imread(img_filename)
+            frame = self.detection_method.predict(frame)
+
+            if self.out_folder != None:
+                cv2.imwrite(os.path.join(self.out_folder, os.path.basename(img_filename)),frame)
+            else:
+                import pylab as plt
+                plt.imshow(cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
+                plt.show(block=True)
+
+def main(args):
+
+    if args.image_folder is None:
+        from echolib_wrapper import EcholibWrapper
+        processer = lambda d: EcholibWrapper(d, args.out_channel, args.in_channel)
+    else:
+        processer = lambda d: FolderProcessing(d, args.image_folder, args.image_ext, args.out_folder)
+
+    p = processer(PModel(modelFile=args.model))
+
+    try:
+        p.run()
+    except Exception as ex:
+        print(ex)
+        pass
+
 
 def parseArgs():
-    parser = argparse.ArgumentParser(description='Traffic Sign Detection')
+    parser = argparse.ArgumentParser(description='Poly Counting')
+    parser.add_argument(
+        '--model',
+        dest='model',
+        help='model model file',
+        default="/opt/poco_model.hdf5",
+        type=str
+    )
+    parser.add_argument(
+        '--image-ext',
+        dest='image_ext',
+        help='image file name extension (default: jpg)',
+        default='jpg',
+        type=str
+    )
+    parser.add_argument(
+        '--image-folder',
+        dest='image_folder',
+        help='folder to images for processing (default: None)',
+        default=None,
+        type=str
+    )
+    parser.add_argument(
+        '--out-folder',
+        dest='out_folder',
+        help='folder to store output (default: None)',
+        default=None,
+        type=str
+    )
 
     parser.add_argument(
         'out_channel', help='out channel for echolib', default=None
@@ -265,15 +321,7 @@ def parseArgs():
         parser.print_help()
         sys.exit(1)
     return parser.parse_args()
-        
-def main(args):
-    
-    p = EcholibWrapper(PModel(), args.out_channel, args.in_channel)
 
-    try:
-        p.run()
-    except:
-        pass
 
 if __name__ == "__main__":
     args = parseArgs()

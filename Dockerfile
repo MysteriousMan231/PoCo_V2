@@ -1,17 +1,11 @@
-ARG OS_VERSION=ubuntu:16.04
-ARG DETECTRON_IMAGE_RUNTIME
+ARG OS_VERSION=ubuntu:18.04
+ARG CUDA_VERSION=11.2.0-cudnn8
 
-FROM ${OS_VERSION} as model-dl
-
-RUN apt-get update && apt-get install -y unzip
-
-ENV MODEL_DIR /opt
-
-WORKDIR $MODEL_DIR
-
-FROM ${DETECTRON_IMAGE_RUNTIME}
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-${OS_VERSION}
 
 LABEL maintainer "pm4824@student.uni-lj.si"
+
+ENV DEBIAN_FRONTEND noninteractive
 
 ######################################
 # install dependencies for vicos-demo (echolib and echocv)
@@ -20,25 +14,28 @@ ENV MODEL_DIR /opt
 
 WORKDIR $MODEL_DIR
 
-RUN apt-get update && apt-get install -y build-essential cmake libopencv-dev python-numpy-dev 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git python3-dev python3-numpy-dev python3-pip libopencv-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # install dependency pybind11
-RUN git clone https://github.com/wjakob/pybind11.git && cd pybind11 && mkdir build && cd build && cmake -DPYBIND11_TEST=OFF -DPYBIND11_INSTALL=ON .. && make -j install
+RUN git clone --depth 1 https://github.com/wjakob/pybind11.git && cd pybind11 && mkdir build && cd build && \
+    cmake -j -DPYBIND11_TEST=OFF -DPYBIND11_INSTALL=ON .. && make -j install && cd ../.. && rm -r pybind11
 
-# install echolib (use version compatible with python2.7)
-RUN git clone https://github.com/vicoslab/echolib.git && cd ${MODEL_DIR}/echolib && git checkout f80d4dd71f7def76880e8f3ea915978ce56efcfb
-RUN cd ${MODEL_DIR}//echolib && mkdir build && cd build && cmake -DBUILD_DAEMON=OFF .. && make -j && make install && cd .. && rm -r build
+# install echolib
+RUN git clone --depth 1 https://github.com/vicoslab/echolib.git
+RUN cd ${MODEL_DIR}//echolib && mkdir build && cd build && \
+    cmake -DBUILD_DAEMON=OFF .. && make -j && make install && cd ../.. && rm -r echolib
 
-# install echocv (use version compatible with python2.7)
-RUN git clone https://github.com/vicoslab/echocv.git && cd ${MODEL_DIR}//echocv && git checkout 5a911db977676758f308193f7a13aa7875a7d114
-RUN cd ${MODEL_DIR}//echocv && mkdir build && cd build && cmake -DBUILD_APPS=OFF .. && make -j && make install && cd .. && rm -r build
-
-RUN pip install tensorflow==1.14.0
-RUN pip install keras==2.3.1
-RUN pip install opencv-python==4.1.1.26
+# install echocv
+RUN git clone --depth 1 https://github.com/vicoslab/echocv.git
+RUN cd ${MODEL_DIR}//echocv && mkdir build && cd build && \
+    cmake -DBUILD_APPS=OFF .. && make -j && make install && cd ../.. && rm -r echocv
 
 ##################################
-# install traffic sign model and scripts
+# install dependencies for poco-demo
+RUN python3 -m pip install --upgrade pip && python3 -m pip install setuptools
+RUN python3 -m pip install tensorflow==2.6.0 opencv-python>=4
 
 COPY scripts ${MODEL_DIR}
 

@@ -37,6 +37,8 @@ class EcholibWrapper:
 
         # TODO Maybe add some threading proctection?
         self.enabled = True if (pyecho.MessageReader(message).readInt() != 0) else False
+
+        print("Got command {}".format(self.enabled))
         
 
     def cameraCallback(self, message):
@@ -59,7 +61,11 @@ class EcholibWrapper:
                 self.frameInLock.release()
 
                 # TODO Using enabled in a thread unsafe manner
-                frame        = self.detection_method.doDetection(frame) if self.enabled else frame
+                if self.enabled:
+                    print("Doing detection!")
+                    frame = self.detection_method.predict(frame) if self.enabled else None
+                if self.enabled:
+                    print("Detection finished")
                 self.enabled = False
             else:
                 self.frameInLock.release()
@@ -75,6 +81,8 @@ class EcholibWrapper:
         thread = Thread(target = self.process)
         thread.start()
 
+        print("Starting...")
+
         while self.loop.wait(wait_sec):
 
             self.frameOutLock.acquire()
@@ -89,6 +97,7 @@ class EcholibWrapper:
             if sleep_sec > 0:
                 time.sleep(sleep_sec)
 
+        print("Stop")
 
         thread.join()
 

@@ -20,7 +20,7 @@ ENV MODEL_DIR /opt
 
 WORKDIR $MODEL_DIR
 
-RUN apt-get update && apt-get install -y build-essential cmake libopencv-dev python-numpy-dev
+RUN apt-get update && apt-get install -y build-essential cmake libopencv-dev python-numpy-dev 
 
 # install dependency pybind11
 RUN git clone https://github.com/wjakob/pybind11.git && cd pybind11 && mkdir build && cd build && cmake -DPYBIND11_TEST=OFF -DPYBIND11_INSTALL=ON .. && make -j install
@@ -33,8 +33,9 @@ RUN cd ${MODEL_DIR}//echolib && mkdir build && cd build && cmake -DBUILD_DAEMON=
 RUN git clone https://github.com/vicoslab/echocv.git && cd ${MODEL_DIR}//echocv && git checkout 5a911db977676758f308193f7a13aa7875a7d114
 RUN cd ${MODEL_DIR}//echocv && mkdir build && cd build && cmake -DBUILD_APPS=OFF .. && make -j && make install && cd .. && rm -r build
 
-RUN pip install tensorflow-gpu==1.15
+RUN pip install tensorflow==1.14.0
 RUN pip install keras==2.3.1
+RUN pip install opencv-python==4.1.1.26
 
 ##################################
 # install traffic sign model and scripts

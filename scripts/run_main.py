@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from echolib_wrapper import EcholibWrapper
 from keras.layers import Conv2D, MaxPooling2D, Dropout, Input, UpSampling2D, concatenate
 from keras.models import Model
@@ -24,11 +26,16 @@ class PModel:
 
         self.blockNumber = blockNumber
         self.sizeRange   = sizeRange
+        self.dirName     = dirName
 
-        self.session     = tf.Session(config = self.config)
-        _, _, self.model = self.__unetModelBlocks(block_number = blockNumber)
 
-        self.model.load_weight(dirName + "/model.hdf5")
+        #self.session     = tf.Session(config = self.config)
+        #_, _, self.model = self.__unetModelBlocks(blockNumber = blockNumber)
+
+        #print(self.model)
+
+        #self.model.load_weights(dirName + "/poco_model.hdf5")
+        #self.graph       = tf.get_default_graph()
 
     def __unetModelBlocks(self, inputs = None, blockNumber = 4, filterNumber = 16):
 
@@ -70,24 +77,32 @@ class PModel:
 
     def __splitAndPredict(self,p_x,p_y,image):
 
-        partsX = p_x*2 - 1
-        partsY = p_y*2 - 1
+        with tf.Session(config = self.config):
 
-        XParts     = [((image.shape[1]//p_x)*x//2,(image.shape[1]//(p_x))*(x+2)//2) for x in range(partsX)]
-        YParts      = [((image.shape[0]//p_y)*x//2,(image.shape[0]//(p_y))*(x+2)//2) for x in range(partsY)]
-        total_image = np.zeros((image.shape[0],image.shape[1]))
+            _, _, self.model = self.__unetModelBlocks(blockNumber = self.blockNumber)
+            self.model.load_weights(self.dirName + "/poco_model.hdf5")
 
-        for y1,y2 in YParts:
-            for x1,x2 in XParts:
+            partsX = p_x*2 - 1
+            partsY = p_y*2 - 1
 
-                t_img = np.float32(image[y1:y2,x1:x2,:3])
-                in_image = np.expand_dims(t_img,axis=0)
-                t_img = self.model.predict(in_image, batch_size=1)
-                total_image[y1:y2,x1:x2] = np.maximum(t_img[0,...,0], total_image[y1:y2,x1:x2])
+            XParts      = [((image.shape[1]//p_x)*x//2,(image.shape[1]//(p_x))*(x+2)//2) for x in range(partsX)]
+            YParts      = [((image.shape[0]//p_y)*x//2,(image.shape[0]//(p_y))*(x+2)//2) for x in range(partsY)]
+            total_image = np.zeros((image.shape[0],image.shape[1]))
+
+            for y1,y2 in YParts:
+                for x1,x2 in XParts:
+
+                    t_img = np.float32(image[y1:y2,x1:x2,:3])
+                    in_image = np.expand_dims(t_img,axis=0)
+
+                    print("in_image {}:{} {}:{} -> {}".format(y1, y2, x1, x2, in_image.shape))
+
+                    t_img = self.model.predict(in_image, batch_size=1)
+                    total_image[y1:y2,x1:x2] = np.maximum(t_img[0,...,0], total_image[y1:y2,x1:x2])
 
         return total_image
 
-    def __non_max_suppression_reverse(msk, filter_size):
+    def __non_max_suppression_reverse(self, msk, filter_size):
 
         orig_mask = msk.copy()
         kernel = np.ones((filter_size,filter_size), dtype=np.uint8)
@@ -161,9 +176,18 @@ class PModel:
 
     def predict(self, image):
 
-        dections     = {}
-        count        = 1
+        xSmall = ySmall = False
+        if image.shape[0] < 512:
+            print("Too small x axis")
+            xSmall = True
+        if image.shape[1] < 512:
+            print("Too small y axis")
+            ySmall = True
 
+        image = cv2.resize(image, (512 if ySmall else image.shape[1], 512 if xSmall else image.shape[0]), interpolation=cv2.INTER_AREA) if any([xSmall, ySmall]) else image
+
+        print("Prediction request: image shape {}".format(image.shape))
+        
         origImage = image[..., ::-1].astype(np.float32)/255.0
         origShape = origImage.shape
         refShape  = origImage.shape
@@ -172,20 +196,30 @@ class PModel:
         partsX       = refShape[1] // 512
         divisorPower = 1
 
+        print("PartsY {} PartsX {}".format(partsY, partsX))
+
         while partsY % (2 ** divisorPower) == 0 and partsX % (2 ** divisorPower) == 0:
             divisorPower += 1
         divisorRequired = (2 ** (self.blockNumber - divisorPower + 2))
+
+        print("DivisorRequired {}".format(divisorRequired))
 
         refShape = [refShape[0] // (partsY * divisorRequired) * (partsY * divisorRequired),
                     refShape[1] // (partsX * divisorRequired) * (partsX * divisorRequired),
                     refShape[2]]
 
+        print("RefShape {}".format(refShape))
+
         origImage = cv2.resize(origImage, (refShape[1], refShape[0]), interpolation=cv2.INTER_AREA)
+
+        print("OrigImage shape {}".format(origImage.shape))
 
         maskResult = self.__splitAndPredict(partsX, partsY, origImage)
         maskResult = cv2.resize(maskResult, (maskResult.shape[1]//2, maskResult.shape[0]//2), interpolation=cv2.INTER_AREA)
         maskResult = maskResult / np.max(maskResult)
         tBoxes     = self.__generate_detections_from_mask(maskResult, threshold=50)
+
+        print("Found {} boxes".format(tBoxes))
 
         if(len(tBoxes) != 0):
 
@@ -207,7 +241,15 @@ class PModel:
 
             tBoxes = self.__non_max_sup_boxes(tBoxes, overlapThresh=0.7)
 
-            print(tBoxes)
+            for b in tBoxes:
+                x = b[0]
+                y = b[1]
+                w = b[2]
+                h = b[3]
+
+                cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),2)
+
+        return image
 
 
 def parseArgs():

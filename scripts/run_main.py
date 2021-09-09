@@ -168,7 +168,7 @@ class PModel:
 
     def predict(self, image):
 
-        D = 256
+        D = 512
 
         xSmall = ySmall = False
         if image.shape[0] < D:
@@ -213,7 +213,7 @@ class PModel:
         maskResult = maskResult / np.max(maskResult)
         tBoxes     = self.__generate_detections_from_mask(maskResult, threshold=50)
 
-        print("Found {} boxes".format(tBoxes))
+        print("Found {} boxes".format(len(tBoxes)))
 
         if(len(tBoxes) != 0):
 
@@ -242,8 +242,9 @@ class PModel:
                 h = b[3]
 
                 cv2.rectangle(image,(x-w//2,y-h//2),(x+w//2,y+h//2),(0,255,0),2)
+                print("Put rectangle {}{}".format(x,y))
 
-            #cv2.putText(image, text = "Stevilo detektiranih polipov je {}".format(len(tBoxes)), org = (50,100), color = (0,255,0), thickness = 2)
+            cv2.putText(image, "Stevilo detektiranih polipov je {}".format(len(tBoxes)), (50,100), fontFace = cv2.FONT_HERSHEY_TRIPLEX, fontScale = 1.0, color = (0,0,255), thickness = 1)
 
         return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 

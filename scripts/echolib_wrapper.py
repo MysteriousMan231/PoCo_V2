@@ -57,17 +57,16 @@ class EcholibWrapper:
 
             if self.enabled and self.frameInNew:
 
+                print("Detecting polyps...")
+
                 self.frameInLock.acquire()
                 frame = self.frameIn.copy()
                 self.frameInNew = False
                 self.frameInLock.release()
-
             
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 frame = self.detection_method.predict(frame)
                 self.enabled = False
-            else:
-                self.frameInLock.release()
 
             if frame is not None:
                 self.frameOutLock.acquire()

@@ -53,19 +53,18 @@ class EcholibWrapper:
         # TODO Using self.closing in a thread unsafe manner
         while not self.closing:
 
-            self.frameInLock.acquire()
             frame = None
-            if self.frameInNew:
+
+            if self.enabled and self.frameInNew:
+
+                self.frameInLock.acquire()
                 frame = self.frameIn.copy()
                 self.frameInNew = False
                 self.frameInLock.release()
 
-                # TODO Using enabled in a thread unsafe manner
-                if self.enabled:
-                    print("Doing detection!")
-                    frame = self.detection_method.predict(frame) if self.enabled else None
-                if self.enabled:
-                    print("Detection finished")
+            
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                frame = self.detection_method.predict(frame)
                 self.enabled = False
             else:
                 self.frameInLock.release()

@@ -23,12 +23,12 @@ RUN git clone --depth 1 https://github.com/wjakob/pybind11.git && cd pybind11 &&
     cmake -j -DPYBIND11_TEST=OFF -DPYBIND11_INSTALL=ON .. && make -j install && cd ../.. && rm -r pybind11
 
 # install echolib
-RUN git clone --depth 1 https://github.com/vicoslab/echolib.git
+RUN git clone --depth 1 https://github.com/MysteriousMan231/echolib.git
 RUN cd ${MODEL_DIR}//echolib && mkdir build && cd build && \
     cmake -DBUILD_DAEMON=OFF .. && make -j && make install && cd ../.. && rm -r echolib
 
 # install echocv
-RUN git clone --depth 1 https://github.com/vicoslab/echocv.git
+RUN git clone --depth 1 https://github.com/MysteriousMan231/echocv.git
 RUN cd ${MODEL_DIR}//echocv && mkdir build && cd build && \
     cmake -DBUILD_APPS=OFF .. && make -j && make install && cd ../.. && rm -r echocv
 

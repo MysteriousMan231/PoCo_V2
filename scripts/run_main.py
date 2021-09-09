@@ -3,6 +3,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, Input, UpSampling2D, concatenate
 from tensorflow.keras.models import Model
+from keras import backend as K
 
 import numpy as np
 import cv2
@@ -89,6 +90,8 @@ class PModel:
                     t_img = self.model.predict(in_image, batch_size=1)
                     total_image[y1:y2,x1:x2] = np.maximum(t_img[0,...,0], total_image[y1:y2,x1:x2])
 
+        K.clear_session()
+
         return total_image
 
     def __non_max_suppression_reverse(self, msk, filter_size):
@@ -165,15 +168,17 @@ class PModel:
 
     def predict(self, image):
 
+        D = 256
+
         xSmall = ySmall = False
-        if image.shape[0] < 512:
+        if image.shape[0] < D:
             print("Too small x axis")
             xSmall = True
-        if image.shape[1] < 512:
+        if image.shape[1] < D:
             print("Too small y axis")
             ySmall = True
 
-        image = cv2.resize(image, (512 if ySmall else image.shape[1], 512 if xSmall else image.shape[0]), interpolation=cv2.INTER_AREA) if any([xSmall, ySmall]) else image
+        image = cv2.resize(image, (D if ySmall else image.shape[1], D if xSmall else image.shape[0]), interpolation=cv2.INTER_AREA) if any([xSmall, ySmall]) else image
 
         print("Prediction request: image shape {}".format(image.shape))
         
@@ -181,8 +186,8 @@ class PModel:
         origShape = origImage.shape
         refShape  = origImage.shape
 
-        partsY       = refShape[0] // 512
-        partsX       = refShape[1] // 512
+        partsY       = refShape[0] // D
+        partsX       = refShape[1] // D
         divisorPower = 1
 
         print("PartsY {} PartsX {}".format(partsY, partsX))
@@ -238,7 +243,9 @@ class PModel:
 
                 cv2.rectangle(image,(x-w//2,y-h//2),(x+w//2,y+h//2),(0,255,0),2)
 
-        return image
+            #cv2.putText(image, text = "Stevilo detektiranih polipov je {}".format(len(tBoxes)), org = (50,100), color = (0,255,0), thickness = 2)
+
+        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 import glob, os
 
